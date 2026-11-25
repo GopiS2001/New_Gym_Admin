@@ -31,7 +31,6 @@ import IconButton from '@mui/material/IconButton';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import InputAdornment from '@mui/material/InputAdornment';
 import TablePagination from '@mui/material/TablePagination';
 
 import { RouterLink } from 'src/routes/components';
@@ -46,6 +45,7 @@ import { gymPaths } from '../paths';
 import { Iconify } from '../components/icon';
 import { P, Can, usePermissions } from '../permissions';
 import { ServerGrid, useGridState } from '../components/server-grid';
+import { FilterBar, FilterOptions } from '../components/filter-drawer';
 import { deviceName, lastSeenText, PresenceBadge, SignedInLabel } from './presence';
 import { api, useApi, useList, invalidate, useOptions, downloadJson } from '../api';
 import {
@@ -81,19 +81,24 @@ type MemberRow = {
   friendCount: number;
 };
 
+const MEMBER_FILTER_DEFAULTS = {
+  status: 'all' as 'all' | MemberRow['status'],
+  goalId: '',
+  experienceLevelId: '',
+  onboardingStatus: '',
+  presence: '',
+  from: '',
+  to: '',
+};
+
 export function MemberListView() {
   const router = useRouter();
   const { can } = usePermissions();
   const grid = useGridState({ sortBy: 'createdAt', sortOrder: 'desc' });
-  const [status, setStatus] = useState<'all' | MemberRow['status']>('all');
+  const [filters, setFilters] = useState(MEMBER_FILTER_DEFAULTS);
+  const { status, goalId, experienceLevelId, onboardingStatus, presence, from, to } = filters;
   const [search, setSearch] = useState('');
-  const [goalId, setGoalId] = useState('');
-  const [experienceLevelId, setExperience] = useState('');
-  const [onboardingStatus, setOnboarding] = useState('');
-  const [presence, setPresence] = useState('');
   const { confirm, dialog } = useConfirm();
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const q = useDebounce(search, 300);
   const { options: goals } = useOptions('/admin/goals');
@@ -105,7 +110,7 @@ export function MemberListView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, status, goalId, experienceLevelId, onboardingStatus, presence, from, to]);
 
-  const filters = {
+  const query = {
     search: q || undefined,
     status: status === 'all' ? undefined : status,
     goalId,
@@ -118,7 +123,7 @@ export function MemberListView() {
   // Refresh every 30 s so online / offline stays current.
   const { data, isLoading, error, mutate } = useList<MemberRow>(
     '/admin/users',
-    { ...grid.state, ...filters },
+    { ...grid.state, ...query },
     { refreshInterval: 30_000 }
   );
   const counts = data?.statusCounts ?? {};
@@ -140,7 +145,7 @@ export function MemberListView() {
 
   const exportCsv = async () => {
     const qs = new URLSearchParams(
-      Object.entries(filters).filter(([, v]) => v) as [string, string][]
+      Object.entries(query).filter(([, v]) => v) as [string, string][]
     ).toString();
     try {
       await api.download(
@@ -279,9 +284,13 @@ export function MemberListView() {
           <Label
             variant="soft"
             color={onlineNow ? 'success' : 'default'}
-            startIcon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'currentColor' }} />}
+            startIcon={
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'currentColor' }} />
+            }
             sx={{ height: 36, px: 1.5, cursor: 'pointer' }}
-            onClick={() => setPresence(presence === 'online' ? '' : 'online')}
+            onClick={() =>
+              setFilters((f) => ({ ...f, presence: presence === 'online' ? '' : 'online' }))
+            }
           >
             {onlineNow} online now
           </Label>
@@ -319,123 +328,107 @@ export function MemberListView() {
         emptyTitle="No members found"
         emptyDescription="Members appear here once they create an account in the app."
         toolbar={
-          <>
-            <Tabs
-              value={status}
-              onChange={(_, v) => setStatus(v)}
-              sx={{ px: 2.5, boxShadow: (t) => `inset 0 -2px 0 0 ${t.vars.palette.divider}` }}
-            >
-              {(['all', 'ACTIVE', 'INACTIVE', 'SUSPENDED'] as const).map((s) => (
-                <Tab
-                  key={s}
-                  value={s}
-                  iconPosition="end"
-                  label={s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase()}
-                  icon={
-                    <Label
-                      variant={s === status ? 'filled' : 'soft'}
-                      color={s === 'ACTIVE' ? 'success' : s === 'SUSPENDED' ? 'error' : 'default'}
-                    >
-                      {s === 'all'
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search name or email…"
+            values={filters}
+            defaults={MEMBER_FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <>
+                <FilterOptions
+                  title="Status"
+                  value={draft.status}
+                  onChange={(v) => setDraft({ status: v })}
+                  options={(['all', 'ACTIVE', 'INACTIVE', 'SUSPENDED'] as const).map((s) => ({
+                    value: s,
+                    label: s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase(),
+                    count:
+                      s === 'all'
                         ? Object.values(counts).reduce((a, b) => a + b, 0)
-                        : (counts[s] ?? 0)}
-                    </Label>
-                  }
+                        : (counts[s] ?? 0),
+                  }))}
                 />
-              ))}
-            </Tabs>
-            <Box sx={{ p: 2, gap: 2, display: 'flex', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                placeholder="Search name or email…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{ flexGrow: 1, minWidth: 220 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Iconify icon="eva:search-fill" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                select
-                size="small"
-                label="Goal"
-                value={goalId}
-                onChange={(e) => setGoalId(e.target.value)}
-                sx={{ minWidth: 160 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {goals.map((g) => (
-                  <MenuItem key={g.id} value={String(g.id)}>
-                    {g.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                size="small"
-                label="Experience"
-                value={experienceLevelId}
-                onChange={(e) => setExperience(e.target.value)}
-                sx={{ minWidth: 160 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {levels.map((g) => (
-                  <MenuItem key={g.id} value={String(g.id)}>
-                    {g.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                size="small"
-                label="Onboarding"
-                value={onboardingStatus}
-                onChange={(e) => setOnboarding(e.target.value)}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="COMPLETED">Completed</MenuItem>
-                <MenuItem value="IN_PROGRESS">In progress</MenuItem>
-                <MenuItem value="NOT_STARTED">Not started</MenuItem>
-              </TextField>
-              <TextField
-                select
-                size="small"
-                label="Activity"
-                value={presence}
-                onChange={(e) => setPresence(e.target.value)}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="online">Online now</MenuItem>
-                <MenuItem value="offline">Offline</MenuItem>
-                <MenuItem value="signed_in">Signed in</MenuItem>
-                <MenuItem value="signed_out">Signed out</MenuItem>
-              </TextField>
-              <TextField
-                size="small"
-                type="date"
-                label="Registered from"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                size="small"
-                type="date"
-                label="to"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Box>
-          </>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Goal"
+                  value={draft.goalId}
+                  onChange={(e) => setDraft({ goalId: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {goals.map((g) => (
+                    <MenuItem key={g.id} value={String(g.id)}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Experience"
+                  value={draft.experienceLevelId}
+                  onChange={(e) => setDraft({ experienceLevelId: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {levels.map((g) => (
+                    <MenuItem key={g.id} value={String(g.id)}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Onboarding"
+                  value={draft.onboardingStatus}
+                  onChange={(e) => setDraft({ onboardingStatus: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="COMPLETED">Completed</MenuItem>
+                  <MenuItem value="IN_PROGRESS">In progress</MenuItem>
+                  <MenuItem value="NOT_STARTED">Not started</MenuItem>
+                </TextField>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Activity"
+                  value={draft.presence}
+                  onChange={(e) => setDraft({ presence: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="online">Online now</MenuItem>
+                  <MenuItem value="offline">Offline</MenuItem>
+                  <MenuItem value="signed_in">Signed in</MenuItem>
+                  <MenuItem value="signed_out">Signed out</MenuItem>
+                </TextField>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="Registered from"
+                  value={draft.from}
+                  onChange={(e) => setDraft({ from: e.target.value })}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="Registered to"
+                  value={draft.to}
+                  onChange={(e) => setDraft({ to: e.target.value })}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </>
+            )}
+          </FilterBar>
         }
       />
       {createOpen && can(P.USERS_MANAGE) && (
@@ -572,7 +565,11 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function MemberDetailView() {
   const { id } = useParams();
   const { can } = usePermissions();
-  const { data: m, error, mutate } = useApi<MemberDetail>(id ? `/admin/users/${id}` : null, {
+  const {
+    data: m,
+    error,
+    mutate,
+  } = useApi<MemberDetail>(id ? `/admin/users/${id}` : null, {
     refreshInterval: 30_000,
   });
   const [tab, setTab] = useState('overview');
@@ -678,8 +675,19 @@ export function MemberDetailView() {
               {m.email} · {m.emailVerified ? 'email verified' : 'email not verified'} · joined{' '}
               {fDate(m.createdAt)}
             </Typography>
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-              <PresenceBadge online={m.presence.online} lastSeenAt={m.presence.lastSeenAt} compact />
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 1.5 }}
+            >
+              <PresenceBadge
+                online={m.presence.online}
+                lastSeenAt={m.presence.lastSeenAt}
+                compact
+              />
               {!m.presence.online && (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {lastSeenText(m.presence.lastSeenAt)}
@@ -687,9 +695,17 @@ export function MemberDetailView() {
               )}
               <SignedInLabel devices={m.presence.devices.length} />
               {m.presence.devices.map((d, i) => (
-                <Tooltip key={i} title={`Last active ${fDate(d.lastActiveAt, true)}${d.ipAddress ? ` · IP ${d.ipAddress}` : ''}`} arrow>
+                <Tooltip
+                  key={i}
+                  title={`Last active ${fDate(d.lastActiveAt, true)}${d.ipAddress ? ` · IP ${d.ipAddress}` : ''}`}
+                  arrow
+                >
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    <Iconify icon="solar:smartphone-bold" width={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />
+                    <Iconify
+                      icon="solar:smartphone-bold"
+                      width={14}
+                      sx={{ mr: 0.5, verticalAlign: 'middle' }}
+                    />
                     {deviceName(d.userAgent)}
                   </Typography>
                 </Tooltip>
@@ -1042,9 +1058,12 @@ type MemberFriendsData = {
 
 /** Read-only view of a member's friends and pending friend requests. */
 function MemberFriends({ memberId }: { memberId: number }) {
-  const { data, error, isLoading, mutate } = useApi<MemberFriendsData>(`/admin/users/${memberId}/friends`, {
-    refreshInterval: 30_000,
-  });
+  const { data, error, isLoading, mutate } = useApi<MemberFriendsData>(
+    `/admin/users/${memberId}/friends`,
+    {
+      refreshInterval: 30_000,
+    }
+  );
 
   if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
   if (isLoading || !data) return <Skeleton variant="rounded" height={240} />;
@@ -1057,7 +1076,11 @@ function MemberFriends({ memberId }: { memberId: number }) {
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               Friends
             </Typography>
-            <Label variant="soft" color="info" startIcon={<Iconify icon="solar:users-group-rounded-bold" />}>
+            <Label
+              variant="soft"
+              color="info"
+              startIcon={<Iconify icon="solar:users-group-rounded-bold" />}
+            >
               {data.friendCount} {data.friendCount === 1 ? 'friend' : 'friends'}
             </Label>
           </Stack>
@@ -1087,15 +1110,27 @@ function MemberFriends({ memberId }: { memberId: number }) {
               </TableBody>
             </Table>
           ) : (
-            <EmptyContent title="No friends yet" description="Friends appear here once a request is accepted." sx={{ py: 6 }} />
+            <EmptyContent
+              title="No friends yet"
+              description="Friends appear here once a request is accepted."
+              sx={{ py: 6 }}
+            />
           )}
         </Card>
       </Grid>
 
       <Grid size={{ xs: 12, md: 5 }}>
         <Stack spacing={3}>
-          <RequestList title="Requests received" items={data.incoming} empty="No pending requests received." />
-          <RequestList title="Requests sent" items={data.outgoing} empty="No pending requests sent." />
+          <RequestList
+            title="Requests received"
+            items={data.incoming}
+            empty="No pending requests received."
+          />
+          <RequestList
+            title="Requests sent"
+            items={data.outgoing}
+            empty="No pending requests sent."
+          />
         </Stack>
       </Grid>
     </Grid>
@@ -1110,7 +1145,12 @@ function FriendCell({ person }: { person: FriendPerson }) {
       alignItems="center"
       component={RouterLink}
       href={gymPaths.members.details(person.id)}
-      sx={{ color: 'inherit', textDecoration: 'none', minWidth: 0, '&:hover .friend-name': { textDecoration: 'underline' } }}
+      sx={{
+        color: 'inherit',
+        textDecoration: 'none',
+        minWidth: 0,
+        '&:hover .friend-name': { textDecoration: 'underline' },
+      }}
     >
       <Avatar src={person.avatarUrl ?? undefined} sx={{ width: 36, height: 36 }}>
         {person.name[0]}
@@ -1127,7 +1167,15 @@ function FriendCell({ person }: { person: FriendPerson }) {
   );
 }
 
-function RequestList({ title, items, empty }: { title: string; items: MemberFriendsData['incoming']; empty: string }) {
+function RequestList({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: MemberFriendsData['incoming'];
+  empty: string;
+}) {
   return (
     <Card sx={{ p: 3 }}>
       <Stack direction="row" alignItems="center" sx={{ mb: 2 }}>

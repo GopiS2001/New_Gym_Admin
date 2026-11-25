@@ -8,8 +8,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import List from '@mui/material/List';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
@@ -18,14 +16,12 @@ import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
 import ListItem from '@mui/material/ListItem';
 import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import DialogTitle from '@mui/material/DialogTitle';
 import ListItemText from '@mui/material/ListItemText';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { Iconify } from 'src/gym/components/icon';
 
@@ -38,19 +34,25 @@ import { api, useList, invalidate } from '../api';
 import { P, usePermissions } from '../permissions';
 import { RefMultiField } from '../components/fields';
 import { ServerGrid, useGridState } from '../components/server-grid';
+import { FilterBar, FilterOptions } from '../components/filter-drawer';
 import { Page, useConfirm, StatusLabel, handleFormError } from '../components/common';
 
 // ----------------------------------------------------------------------
 
 type Row = Record<string, any> & { id: number; status: 'ACTIVE' | 'INACTIVE' };
 
+const FILTER_DEFAULTS: { status: 'all' | 'ACTIVE' | 'INACTIVE'; group: string } = {
+  status: 'all',
+  group: '',
+};
+
 export function ReferenceView({ config }: { config: ResourceConfig }) {
   const { can } = usePermissions();
   const canManage = can(P.CONTENT_MANAGE);
   const grid = useGridState({ limit: 50 });
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
-  const [group, setGroup] = useState<string>('');
+  const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const { status, group } = filters;
   const [editing, setEditing] = useState<Row | 'new' | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const q = useDebounce(search, 300);
@@ -226,44 +228,36 @@ export function ReferenceView({ config }: { config: ResourceConfig }) {
             : undefined
         }
         toolbar={
-          <Box sx={{ p: 2, gap: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-            {config.groupFilter && (
-              <Tabs value={group} onChange={(_, v) => setGroup(v)} sx={{ width: 1 }}>
-                <Tab value="" label="All" />
-                {config.groupFilter.options.map((o) => (
-                  <Tab key={o.value} value={o.value} label={o.label} />
-                ))}
-              </Tabs>
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            values={filters}
+            defaults={FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <>
+                {config.groupFilter && (
+                  <FilterOptions
+                    title="Group"
+                    value={draft.group}
+                    onChange={(v) => setDraft({ group: v })}
+                    options={[{ value: '', label: 'All' }, ...config.groupFilter.options]}
+                  />
+                )}
+                <FilterOptions
+                  title="Status"
+                  value={draft.status}
+                  onChange={(v) => setDraft({ status: v })}
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'ACTIVE', label: 'Active' },
+                    { value: 'INACTIVE', label: 'Inactive' },
+                  ]}
+                />
+              </>
             )}
-            <TextField
-              size="small"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{ flexGrow: 1, maxWidth: 360 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Iconify icon="eva:search-fill" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-            <TextField
-              select
-              size="small"
-              label="Status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
-              sx={{ width: 160 }}
-            >
-              <MenuItem value="all">All</MenuItem>
-              <MenuItem value="ACTIVE">Active</MenuItem>
-              <MenuItem value="INACTIVE">Inactive</MenuItem>
-            </TextField>
-          </Box>
+          </FilterBar>
         }
       />
 

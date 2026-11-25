@@ -5,8 +5,6 @@ import { useDebounce } from 'minimal-shared/hooks';
 import { useMemo, useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
@@ -14,7 +12,6 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { GridActionsCellItem } from '@mui/x-data-grid';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
@@ -26,10 +23,19 @@ import { gymPaths } from '../paths';
 import { Iconify } from '../components/icon';
 import { P, usePermissions } from '../permissions';
 import { ServerGrid, useGridState } from '../components/server-grid';
+import { FilterBar, FilterOptions } from '../components/filter-drawer';
 import { api, useList, invalidate, useOptions, DIFFICULTIES } from '../api';
 import { Page, fDate, useConfirm, StatusLabel, DifficultyLabel } from '../components/common';
 
 // ----------------------------------------------------------------------
+
+const FILTER_DEFAULTS = {
+  status: 'all' as 'all' | ContentStatus,
+  typeId: '',
+  categoryId: '',
+  equipmentId: '',
+  difficulty: '',
+};
 
 export function ExerciseListView() {
   const router = useRouter();
@@ -38,12 +44,9 @@ export function ExerciseListView() {
   const grid = useGridState({ sortBy: 'updatedAt', sortOrder: 'desc' });
   const { confirm, dialog } = useConfirm();
 
-  const [status, setStatus] = useState<'all' | ContentStatus>('all');
+  const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const { status, typeId, categoryId, equipmentId, difficulty } = filters;
   const [search, setSearch] = useState('');
-  const [typeId, setTypeId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [equipmentId, setEquipmentId] = useState('');
-  const [difficulty, setDifficulty] = useState('');
   const q = useDebounce(search, 300);
 
   const { options: types } = useOptions('/admin/exercise-types');
@@ -277,7 +280,7 @@ export function ExerciseListView() {
       label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      sx={{ minWidth: 160 }}
+      fullWidth
     >
       <MenuItem value="">All</MenuItem>
       {opts.map((o) => (
@@ -325,82 +328,53 @@ export function ExerciseListView() {
             : 'Create the first exercise to start the catalogue.'
         }
         toolbar={
-          <>
-            <Tabs
-              value={status}
-              onChange={(_, v) => setStatus(v)}
-              sx={{ px: 2.5, boxShadow: (t) => `inset 0 -2px 0 0 ${t.vars.palette.divider}` }}
-            >
-              {(['all', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
-                <Tab
-                  key={s}
-                  value={s}
-                  iconPosition="end"
-                  label={s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase()}
-                  icon={
-                    <Label
-                      variant={s === status ? 'filled' : 'soft'}
-                      color={s === 'PUBLISHED' ? 'success' : s === 'DRAFT' ? 'warning' : 'default'}
-                    >
-                      {s === 'all' ? totalAll : (counts[s] ?? 0)}
-                    </Label>
-                  }
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search exercises…"
+            values={filters}
+            defaults={FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <>
+                <FilterOptions
+                  title="Status"
+                  value={draft.status}
+                  onChange={(v) => setDraft({ status: v })}
+                  options={(['all', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((s) => ({
+                    value: s,
+                    label: s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase(),
+                    count: s === 'all' ? totalAll : (counts[s] ?? 0),
+                  }))}
                 />
-              ))}
-            </Tabs>
-            <Box sx={{ p: 2, gap: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-              <TextField
-                size="small"
-                placeholder="Search exercises…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{ flexGrow: 1, minWidth: 220 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Iconify icon="eva:search-fill" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              {select(
-                'Type',
-                typeId,
-                setTypeId,
-                types.map((t) => ({ value: t.id, label: t.name }))
-              )}
-              {select(
-                'Category',
-                categoryId,
-                setCategoryId,
-                categories.map((t) => ({ value: t.id, label: t.name }))
-              )}
-              {select(
-                'Equipment',
-                equipmentId,
-                setEquipmentId,
-                equipment.map((t) => ({ value: t.id, label: t.name }))
-              )}
-              {select('Difficulty', difficulty, setDifficulty, DIFFICULTIES)}
-              {filtersActive && (
-                <Button
-                  color="error"
-                  startIcon={<Iconify icon="solar:trash-bin-trash-bold" />}
-                  onClick={() => {
-                    setSearch('');
-                    setTypeId('');
-                    setCategoryId('');
-                    setEquipmentId('');
-                    setDifficulty('');
-                  }}
-                >
-                  Clear
-                </Button>
-              )}
-            </Box>
-          </>
+                {select(
+                  'Type',
+                  draft.typeId,
+                  (v) => setDraft({ typeId: v }),
+                  types.map((t) => ({ value: t.id, label: t.name }))
+                )}
+                {select(
+                  'Category',
+                  draft.categoryId,
+                  (v) => setDraft({ categoryId: v }),
+                  categories.map((t) => ({ value: t.id, label: t.name }))
+                )}
+                {select(
+                  'Equipment',
+                  draft.equipmentId,
+                  (v) => setDraft({ equipmentId: v }),
+                  equipment.map((t) => ({ value: t.id, label: t.name }))
+                )}
+                {select(
+                  'Difficulty',
+                  draft.difficulty,
+                  (v) => setDraft({ difficulty: v }),
+                  DIFFICULTIES
+                )}
+              </>
+            )}
+          </FilterBar>
         }
       />
       {dialog}

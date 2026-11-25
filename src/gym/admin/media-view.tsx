@@ -16,7 +16,6 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import CardActionArea from '@mui/material/CardActionArea';
 import LinearProgress from '@mui/material/LinearProgress';
-import InputAdornment from '@mui/material/InputAdornment';
 import TablePagination from '@mui/material/TablePagination';
 
 import { toast } from 'src/components/snackbar';
@@ -24,18 +23,21 @@ import { EmptyContent } from 'src/components/empty-content';
 
 import { Iconify } from '../components/icon';
 import { P, usePermissions } from '../permissions';
+import { FilterBar } from '../components/filter-drawer';
 import { api, useApi, useList, invalidate } from '../api';
 import { fBytes, useUpload, MediaThumb, MEDIA_FOLDERS } from '../components/media';
 import { Page, fDate, KeyValue, ErrorState, useConfirm } from '../components/common';
 
 // ----------------------------------------------------------------------
 
+const MEDIA_FILTER_DEFAULTS = { mediaType: '', folder: '' };
+
 export function MediaView() {
   const { can } = usePermissions();
   const canManage = can(P.MEDIA_MANAGE);
   const [search, setSearch] = useState('');
-  const [mediaType, setMediaType] = useState('');
-  const [folder, setFolder] = useState('');
+  const [filters, setFilters] = useState(MEDIA_FILTER_DEFAULTS);
+  const { mediaType, folder } = filters;
   const [uploadFolder, setUploadFolder] = useState('general');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<MediaAsset | null>(null);
@@ -126,60 +128,53 @@ export function MediaView() {
           outline: dragging ? (t) => `2px dashed ${t.vars.palette.primary.main}` : 'none',
         }}
       >
-        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
-          <TextField
-            size="small"
-            placeholder="Search file name or alt text…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            sx={{ flexGrow: 1, minWidth: 220 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Iconify icon="eva:search-fill" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          <TextField
-            select
-            size="small"
-            label="Type"
-            value={mediaType}
-            onChange={(e) => {
-              setMediaType(e.target.value);
-              setPage(0);
-            }}
-            sx={{ minWidth: 130 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="IMAGE">Images</MenuItem>
-            <MenuItem value="VIDEO">Videos</MenuItem>
-          </TextField>
-          <TextField
-            select
-            size="small"
-            label="Folder"
-            value={folder}
-            onChange={(e) => {
-              setFolder(e.target.value);
-              setPage(0);
-            }}
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {MEDIA_FOLDERS.map((f) => (
-              <MenuItem key={f} value={f} sx={{ textTransform: 'capitalize' }}>
-                {f}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
+        <FilterBar
+          sx={{ p: 0, mb: 2 }}
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v);
+            setPage(0);
+          }}
+          searchPlaceholder="Search file name or alt text…"
+          values={filters}
+          defaults={MEDIA_FILTER_DEFAULTS}
+          onApply={(f) => {
+            setFilters(f);
+            setPage(0);
+          }}
+        >
+          {(draft, setDraft) => (
+            <>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Type"
+                value={draft.mediaType}
+                onChange={(e) => setDraft({ mediaType: e.target.value })}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="IMAGE">Images</MenuItem>
+                <MenuItem value="VIDEO">Videos</MenuItem>
+              </TextField>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Folder"
+                value={draft.folder}
+                onChange={(e) => setDraft({ folder: e.target.value })}
+              >
+                <MenuItem value="">All</MenuItem>
+                {MEDIA_FOLDERS.map((f) => (
+                  <MenuItem key={f} value={f} sx={{ textTransform: 'capitalize' }}>
+                    {f}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </>
+          )}
+        </FilterBar>
 
         {uploading && <LinearProgress variant="determinate" value={progress ?? 0} sx={{ mb: 2 }} />}
         <ErrorState error={error} onRetry={() => mutate()} />

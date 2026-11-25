@@ -5,8 +5,6 @@ import { useDebounce } from 'minimal-shared/hooks';
 import { useMemo, useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
@@ -14,22 +12,27 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { GridActionsCellItem } from '@mui/x-data-grid';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
 
-import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 
 import { gymPaths } from '../paths';
 import { Iconify } from '../components/icon';
 import { P, usePermissions } from '../permissions';
 import { ServerGrid, useGridState } from '../components/server-grid';
+import { FilterBar, FilterOptions } from '../components/filter-drawer';
 import { api, useList, invalidate, useOptions, DIFFICULTIES } from '../api';
 import { Page, fDate, useConfirm, StatusLabel, DifficultyLabel } from '../components/common';
 
 // ----------------------------------------------------------------------
+
+const FILTER_DEFAULTS = {
+  status: 'all' as 'all' | ContentStatus,
+  goalId: '',
+  difficulty: '',
+};
 
 export function ProgramListView() {
   const router = useRouter();
@@ -37,10 +40,9 @@ export function ProgramListView() {
   const canManage = can(P.CONTENT_MANAGE);
   const grid = useGridState({ sortBy: 'updatedAt', sortOrder: 'desc' });
   const { confirm, dialog } = useConfirm();
-  const [status, setStatus] = useState<'all' | ContentStatus>('all');
+  const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const { status, goalId, difficulty } = filters;
   const [search, setSearch] = useState('');
-  const [goalId, setGoalId] = useState('');
-  const [difficulty, setDifficulty] = useState('');
   const q = useDebounce(search, 300);
   const { options: goals } = useOptions('/admin/goals');
 
@@ -276,80 +278,62 @@ export function ProgramListView() {
         emptyTitle="No programs found"
         emptyDescription="Programs are multi-week guided journeys built from published exercises."
         toolbar={
-          <>
-            <Tabs
-              value={status}
-              onChange={(_, v) => setStatus(v)}
-              sx={{ px: 2.5, boxShadow: (t) => `inset 0 -2px 0 0 ${t.vars.palette.divider}` }}
-            >
-              {(['all', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
-                <Tab
-                  key={s}
-                  value={s}
-                  iconPosition="end"
-                  label={s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase()}
-                  icon={
-                    <Label
-                      variant={s === status ? 'filled' : 'soft'}
-                      color={s === 'PUBLISHED' ? 'success' : s === 'DRAFT' ? 'warning' : 'default'}
-                    >
-                      {s === 'all'
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search programs…"
+            values={filters}
+            defaults={FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <>
+                <FilterOptions
+                  title="Status"
+                  value={draft.status}
+                  onChange={(v) => setDraft({ status: v })}
+                  options={(['all', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((s) => ({
+                    value: s,
+                    label: s === 'all' ? 'All' : s[0] + s.slice(1).toLowerCase(),
+                    count:
+                      s === 'all'
                         ? Object.values(counts).reduce((a, b) => a + b, 0)
-                        : (counts[s] ?? 0)}
-                    </Label>
-                  }
+                        : (counts[s] ?? 0),
+                  }))}
                 />
-              ))}
-            </Tabs>
-            <Box sx={{ p: 2, gap: 2, display: 'flex', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                placeholder="Search programs…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{ flexGrow: 1, minWidth: 220 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Iconify icon="eva:search-fill" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                select
-                size="small"
-                label="Goal"
-                value={goalId}
-                onChange={(e) => setGoalId(e.target.value)}
-                sx={{ minWidth: 180 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {goals.map((g) => (
-                  <MenuItem key={g.id} value={String(g.id)}>
-                    {g.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                size="small"
-                label="Difficulty"
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                sx={{ minWidth: 160 }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {DIFFICULTIES.map((d) => (
-                  <MenuItem key={d.value} value={d.value}>
-                    {d.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-          </>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Goal"
+                  value={draft.goalId}
+                  onChange={(e) => setDraft({ goalId: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {goals.map((g) => (
+                    <MenuItem key={g.id} value={String(g.id)}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Difficulty"
+                  value={draft.difficulty}
+                  onChange={(e) => setDraft({ difficulty: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {DIFFICULTIES.map((d) => (
+                    <MenuItem key={d.value} value={d.value}>
+                      {d.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </>
+            )}
+          </FilterBar>
         }
       />
       {dialog}

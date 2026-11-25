@@ -209,7 +209,7 @@ export const SeparatorIcon = (props: IconProps) => (
 const MuiDataGrid: Components<Theme>['MuiDataGrid'] = {
   // ▼▼▼▼▼▼▼▼ ⚙️ PROPS ▼▼▼▼▼▼▼▼
   defaultProps: {
-    showToolbar: true,
+    showToolbar: false,
     slots: {
       /* Column */
       columnSortedAscendingIcon: ArrowUpIcon,

@@ -5,15 +5,11 @@ import { useDebounce } from 'minimal-shared/hooks';
 import { useMemo, useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { GridActionsCellItem } from '@mui/x-data-grid';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
@@ -24,6 +20,7 @@ import { Iconify } from '../components/icon';
 import { api, useList, invalidate } from '../api';
 import { P, usePermissions } from '../permissions';
 import { ServerGrid, useGridState } from '../components/server-grid';
+import { FilterBar, FilterOptions } from '../components/filter-drawer';
 import { Page, fDate, useConfirm, StatusLabel } from '../components/common';
 
 // ----------------------------------------------------------------------
@@ -49,6 +46,8 @@ type Props = {
   roundAvatar?: boolean;
 };
 
+const FILTER_DEFAULTS: { status: 'all' | ContentStatus } = { status: 'all' };
+
 /** List screen shared by coaches, workout templates and featured collections. */
 export function ContentList({
   title,
@@ -66,7 +65,8 @@ export function ContentList({
   const canManage = can(P.CONTENT_MANAGE);
   const grid = useGridState();
   const { confirm, dialog } = useConfirm();
-  const [status, setStatus] = useState<'all' | ContentStatus>('all');
+  const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const { status } = filters;
   const [search, setSearch] = useState('');
   const q = useDebounce(search, 300);
 
@@ -237,36 +237,27 @@ export function ContentList({
         emptyTitle={`No ${title.toLowerCase()} yet`}
         emptyDescription={emptyDescription}
         toolbar={
-          <>
-            <Tabs
-              value={status}
-              onChange={(_, v) => setStatus(v)}
-              sx={{ px: 2.5, boxShadow: (t) => `inset 0 -2px 0 0 ${t.vars.palette.divider}` }}
-            >
-              <Tab value="all" label="All" />
-              <Tab value="PUBLISHED" label="Published" />
-              <Tab value="DRAFT" label="Draft" />
-              <Tab value="ARCHIVED" label="Archived" />
-            </Tabs>
-            <Box sx={{ p: 2 }}>
-              <TextField
-                size="small"
-                placeholder="Search…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{ width: 1, maxWidth: 360 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Iconify icon="eva:search-fill" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            values={filters}
+            defaults={FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <FilterOptions
+                title="Status"
+                value={draft.status}
+                onChange={(v) => setDraft({ status: v })}
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'PUBLISHED', label: 'Published' },
+                  { value: 'DRAFT', label: 'Draft' },
+                  { value: 'ARCHIVED', label: 'Archived' },
+                ]}
               />
-            </Box>
-          </>
+            )}
+          </FilterBar>
         }
       />
       {dialog}

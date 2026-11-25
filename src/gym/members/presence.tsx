@@ -48,7 +48,10 @@ export function PresenceBadge({
           }}
         />
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle2" sx={{ color: online ? 'success.main' : 'text.secondary', lineHeight: 1.3 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{ color: online ? 'success.main' : 'text.secondary', lineHeight: 1.3 }}
+          >
             {online ? 'Online' : 'Offline'}
           </Typography>
           {!online && !compact && (

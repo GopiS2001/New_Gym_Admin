@@ -30,7 +30,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TableContainer from '@mui/material/TableContainer';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -40,6 +39,7 @@ import { useAuthContext } from 'src/auth/hooks';
 
 import { Iconify } from '../components/icon';
 import { RefMultiField } from '../components/fields';
+import { FilterBar } from '../components/filter-drawer';
 import { api, useApi, useList, invalidate } from '../api';
 import { ServerGrid, useGridState } from '../components/server-grid';
 import {
@@ -774,10 +774,12 @@ type AuditEntry = {
   adminUser: { id: number; name: string; email: string } | null;
 };
 
+const AUDIT_FILTER_DEFAULTS = { entityType: '', action: '' };
+
 export function AuditLogView() {
   const grid = useGridState();
-  const [entityType, setEntityType] = useState('');
-  const [action, setAction] = useState('');
+  const [filters, setFilters] = useState(AUDIT_FILTER_DEFAULTS);
+  const { entityType, action } = filters;
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AuditEntry | null>(null);
   const { data, isLoading, error, mutate } = useList<AuditEntry>('/admin/audit-logs', {
@@ -842,69 +844,64 @@ export function AuditLogView() {
         onRowClick={setSelected}
         emptyTitle="No audit entries"
         toolbar={
-          <Stack direction="row" spacing={2} sx={{ p: 2 }} flexWrap="wrap" useFlexGap>
-            <TextField
-              size="small"
-              placeholder="Search summary…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{ flexGrow: 1, minWidth: 220 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Iconify icon="eva:search-fill" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-            <TextField
-              select
-              size="small"
-              label="Entity"
-              value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
-              sx={{ minWidth: 180 }}
-            >
-              <MenuItem value="">All</MenuItem>
-              {entityTypes.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Action"
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="">All</MenuItem>
-              {[
-                'create',
-                'update',
-                'delete',
-                'publish',
-                'unpublish',
-                'archive',
-                'activate',
-                'deactivate',
-                'suspend',
-                'restore',
-                'export',
-                'upload',
-                'replace',
-                'password_reset_sent',
-              ].map((a) => (
-                <MenuItem key={a} value={a}>
-                  {humanize(a)}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search summary…"
+            values={filters}
+            defaults={AUDIT_FILTER_DEFAULTS}
+            onApply={setFilters}
+          >
+            {(draft, setDraft) => (
+              <>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Entity"
+                  value={draft.entityType}
+                  onChange={(e) => setDraft({ entityType: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {entityTypes.map((t) => (
+                    <MenuItem key={t} value={t}>
+                      {t}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Action"
+                  value={draft.action}
+                  onChange={(e) => setDraft({ action: e.target.value })}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {[
+                    'create',
+                    'update',
+                    'delete',
+                    'publish',
+                    'unpublish',
+                    'archive',
+                    'activate',
+                    'deactivate',
+                    'suspend',
+                    'restore',
+                    'export',
+                    'upload',
+                    'replace',
+                    'password_reset_sent',
+                  ].map((a) => (
+                    <MenuItem key={a} value={a}>
+                      {humanize(a)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </>
+            )}
+          </FilterBar>
         }
       />
       <Drawer
