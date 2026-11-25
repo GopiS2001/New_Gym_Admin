@@ -1,6 +1,6 @@
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import Card from '@mui/material/Card';
 import { DataGrid, gridClasses } from '@mui/x-data-grid';
@@ -22,10 +22,16 @@ export type GridState = {
 export function useGridState(initial: Partial<GridState> = {}) {
   const [state, setState] = useState<GridState>({ page: 1, limit: 10, ...initial });
 
-  const paginationModel: GridPaginationModel = { page: state.page - 1, pageSize: state.limit };
-  const sortModel: GridSortModel = state.sortBy
-    ? [{ field: state.sortBy, sort: state.sortOrder ?? 'asc' }]
-    : [];
+  // Keep these referentially stable: the DataGrid treats a new sortModel array as a sort
+  // change and jumps back to the first page, which broke "next page" navigation.
+  const paginationModel = useMemo<GridPaginationModel>(
+    () => ({ page: state.page - 1, pageSize: state.limit }),
+    [state.page, state.limit]
+  );
+  const sortModel = useMemo<GridSortModel>(
+    () => (state.sortBy ? [{ field: state.sortBy, sort: state.sortOrder ?? 'asc' }] : []),
+    [state.sortBy, state.sortOrder]
+  );
 
   return {
     state,
@@ -36,12 +42,13 @@ export function useGridState(initial: Partial<GridState> = {}) {
       onPaginationModelChange: (m: GridPaginationModel) =>
         setState((s) => ({ ...s, page: m.page + 1, limit: m.pageSize })),
       onSortModelChange: (m: GridSortModel) =>
-        setState((s) => ({
-          ...s,
-          page: 1,
-          sortBy: m[0]?.field,
-          sortOrder: (m[0]?.sort ?? undefined) as GridState['sortOrder'],
-        })),
+        setState((s) => {
+          const sortBy = m[0]?.field;
+          const sortOrder = (m[0]?.sort ?? undefined) as GridState['sortOrder'];
+          // Ignore no-op notifications so they don't reset the current page.
+          if (sortBy === s.sortBy && (sortOrder ?? 'asc') === (s.sortOrder ?? 'asc')) return s;
+          return { ...s, page: 1, sortBy, sortOrder };
+        }),
     },
   };
 }
