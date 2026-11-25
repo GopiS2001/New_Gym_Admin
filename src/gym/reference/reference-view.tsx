@@ -49,7 +49,7 @@ const FILTER_DEFAULTS: { status: 'all' | 'ACTIVE' | 'INACTIVE'; group: string } 
 export function ReferenceView({ config }: { config: ResourceConfig }) {
   const { can } = usePermissions();
   const canManage = can(P.CONTENT_MANAGE);
-  const grid = useGridState({ limit: 50 });
+  const grid = useGridState();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState(FILTER_DEFAULTS);
   const { status, group } = filters;
