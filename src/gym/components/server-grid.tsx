@@ -20,7 +20,7 @@ export type GridState = {
 
 /** Pagination + sort state in the shape the API expects. */
 export function useGridState(initial: Partial<GridState> = {}) {
-  const [state, setState] = useState<GridState>({ page: 1, limit: 20, ...initial });
+  const [state, setState] = useState<GridState>({ page: 1, limit: 10, ...initial });
 
   const paginationModel: GridPaginationModel = { page: state.page - 1, pageSize: state.limit };
   const sortModel: GridSortModel = state.sortBy
