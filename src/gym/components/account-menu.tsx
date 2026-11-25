@@ -18,6 +18,7 @@ import { signOut } from 'src/auth/context/jwt/action';
 
 import { Iconify } from './icon';
 import { gymPaths } from '../paths';
+import { useConfirm } from './common';
 
 // ----------------------------------------------------------------------
 
@@ -26,15 +27,27 @@ export function AdminAccountMenu() {
   const popover = usePopover();
   const { user, checkUserSession } = useAuthContext();
 
+  const { confirm, dialog } = useConfirm();
+
   const logout = async () => {
     try {
       await signOut();
       await checkUserSession?.();
-      popover.onClose();
       router.refresh();
     } catch {
       toast.error('Unable to sign out');
     }
+  };
+
+  const askLogout = () => {
+    popover.onClose();
+    confirm({
+      title: 'Sign out?',
+      content: 'You will be signed out of the admin dashboard and need to log in again.',
+      confirmText: 'Sign out',
+      color: 'error',
+      onConfirm: logout,
+    });
   };
 
   return (
@@ -81,12 +94,13 @@ export function AdminAccountMenu() {
             <Iconify icon="solar:user-rounded-bold" />
             My account
           </MenuItem>
-          <MenuItem onClick={logout} sx={{ color: 'error.main' }}>
+          <MenuItem onClick={askLogout} sx={{ color: 'error.main' }}>
             <Iconify icon="solar:logout-2-bold" />
             Sign out
           </MenuItem>
         </MenuList>
       </CustomPopover>
+      {dialog}
     </>
   );
 }

@@ -228,6 +228,7 @@ export const RESOURCES: ResourceConfig[] = [
     columns: [
       ...baseColumns(),
       { field: 'groups', headerName: 'Groups', kind: 'chips', flex: 1 },
+      { field: 'sortOrder', headerName: 'Order', kind: 'number', width: 90 },
       { field: 'status', headerName: 'Status', kind: 'status', width: 120 },
     ],
   },
