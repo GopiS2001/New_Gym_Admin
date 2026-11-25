@@ -361,6 +361,31 @@ function ReferenceFormDialog({
 
   const methods = useForm({ resolver: zodResolver(schema) as any, defaultValues });
 
+  // New records: pre-fill "Display order" with the next number from the API
+  // (per group for grouped resources such as onboarding options).
+  const autoOrder = !row && config.fields.some((f) => f.name === 'sortOrder');
+  const groupParam = config.groupFilter?.param;
+  const groupValue = groupParam ? (methods.watch(groupParam) as string | undefined) : undefined;
+  useEffect(() => {
+    if (!autoOrder) return undefined;
+    let cancelled = false;
+    const qs = groupParam && groupValue ? `?${groupParam}=${encodeURIComponent(groupValue)}` : '';
+    api
+      .get<{ sortOrder: number }>(`${config.apiPath}/next-sort-order${qs}`)
+      .then((r) => {
+        if (!cancelled && !methods.getFieldState('sortOrder').isDirty) {
+          methods.setValue('sortOrder', r.sortOrder);
+        }
+      })
+      .catch(() => {
+        // Keep the default; the API also assigns the next order when none is sent.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOrder, config.apiPath, groupParam, groupValue]);
+
   const onSubmit = methods.handleSubmit(async (values: Record<string, any>) => {
     const { active, ...rest } = values;
     const body: Record<string, unknown> = {
